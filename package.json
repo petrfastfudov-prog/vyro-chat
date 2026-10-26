@@ -1,0 +1,9 @@
+{
+  "name": "vyro-anonymous-chat",
+  "version": "1.1.1",
+  "description": "VYRO anonymous roulette chat with text, photo and voice messages",
+  "main": "server.js",
+  "scripts": { "start": "node server.js", "check": "node --check server.js" },
+  "engines": { "node": ">=18" },
+  "dependencies": { "express": "^4.21.2", "socket.io": "^4.8.1" }
+}
