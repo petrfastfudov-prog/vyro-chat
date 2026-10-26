@@ -16,31 +16,31 @@ const PORT = Number(process.env.PORT) || 3000;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 const allowedOrigin = process.env.APP_ORIGIN || '';
 
-// Privacy-first: no chat history, uploaded files, IP addresses or message bodies are stored.
-// Reports contain only reason, time and transient socket IDs, in memory, and vanish on restart.
+// История чата, файлы, IP-адреса и сообщения не сохраняются.
 app.disable('x-powered-by');
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Permissions-Policy', 'camera=(), geolocation=(), payment=()');
-  if (process.env.NODE_ENV === 'production') res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
   next();
 });
-app.use(express.static(PUBLIC_DIR, { dotfiles: 'deny', etag: true, maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0 }));
-app.get('/healthz', (_req, res) => res.status(200).json({ ok: true }));
-app.get('/admin/reports', (req, res) => {
-  if (!ADMIN_TOKEN) return res.status(503).json({ error: 'ADMIN_TOKEN is not configured' });
-  const auth = req.get('authorization') || '';
-  const supplied = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-  const a = Buffer.from(supplied); const b = Buffer.from(ADMIN_TOKEN);
-  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return res.status(401).json({ error: 'Unauthorized' });
-  res.setHeader('Cache-Control', 'no-store');
-  res.json({ reports: reports.slice(-200), note: 'In-memory only; reports disappear when the process restarts.' });
+
+app.use(express.static(PUBLIC_DIR, {
+  dotfiles: 'deny',
+  etag: true,
+  maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0
+}));
+
+app.get('/healthz', (_req, res) => {
+  res.status(200).json({ ok: true });
 });
 
 const searchQueues = { general: [], flirt: [], adult: [] };
-const rooms = new Map(); // socket ID -> room name
+const rooms = new Map();
 const rateEvents = new Map();
 const blockedUntil = new Map();
 const reports = [];
@@ -49,15 +49,40 @@ const MAX_TEXT = 2000;
 const MAX_MEDIA_DATA_URL = 1_350_000;
 const MAX_IGNORED = 50;
 
+app.get('/admin/reports', (req, res) => {
+  if (!ADMIN_TOKEN) {
+    return res.status(503).json({ error: 'ADMIN_TOKEN is not configured' });
+  }
+
+  const auth = req.get('authorization') || '';
+  const supplied = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  const a = Buffer.from(supplied);
+  const b = Buffer.from(ADMIN_TOKEN);
+
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  res.setHeader('Cache-Control', 'no-store');
+  res.json({
+    reports: reports.slice(-200),
+    note: 'In-memory only; reports disappear when the process restarts.'
+  });
+});
+
 if (allowedOrigin) {
   io.engine.on('headers', (headers, req) => {
-    // Socket.IO's same-origin defaults remain in effect. APP_ORIGIN is intended for deployment checks.
     const origin = req.headers.origin;
-    if (origin && origin !== allowedOrigin) req._vhsOriginRejected = true;
+    if (origin && origin !== allowedOrigin) {
+      req._vhsOriginRejected = true;
+    }
   });
+
   io.use((socket, next) => {
     const origin = socket.handshake.headers.origin;
-    if (origin && origin !== allowedOrigin) return next(new Error('Origin not allowed'));
+    if (origin && origin !== allowedOrigin) {
+      return next(new Error('Origin not allowed'));
+    }
     next();
   });
 }
@@ -66,76 +91,79 @@ function limited(socket, bucket, max, windowMs, cooldownMs = 10000) {
   const now = Date.now();
   const key = `${socket.id}:${bucket}`;
   const until = blockedUntil.get(key) || 0;
+
   if (until > now) return true;
+
   const times = (rateEvents.get(key) || []).filter(t => now - t < windowMs);
   times.push(now);
   rateEvents.set(key, times);
+
   if (times.length > max) {
     blockedUntil.set(key, now + cooldownMs);
     return true;
   }
+
   return false;
 }
 
 function cleanSocketLimits(id) {
-  for (const key of rateEvents.keys()) if (key.startsWith(`${id}:`)) rateEvents.delete(key);
-  for (const key of blockedUntil.keys()) if (key.startsWith(`${id}:`)) blockedUntil.delete(key);
+  for (const key of rateEvents.keys()) {
+    if (key.startsWith(`${id}:`)) rateEvents.delete(key);
+  }
+  for (const key of blockedUntil.keys()) {
+    if (key.startsWith(`${id}:`)) blockedUntil.delete(key);
+  }
 }
 
 function validPhoto(dataUrl) {
-  if (typeof dataUrl !== 'string' || dataUrl.length > MAX_MEDIA_DATA_URL) return false;
+  if (typeof dataUrl !== 'string' || dataUrl.length > MAX_MEDIA_DATA_URL) {
+    return false;
+  }
+
   const match = /^data:image\/jpeg;base64,([A-Za-z0-9+/]+=*)$/.exec(dataUrl);
   if (!match || match[1].length < 16) return false;
+
   try {
-    return Buffer.from(match[1], 'base64').subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]));
+    return Buffer.from(match[1], 'base64')
+      .subarray(0, 3)
+      .equals(Buffer.from([0xff, 0xd8, 0xff]));
   } catch {
     return false;
   }
 }
 
 function validVoice(dataUrl) {
-  if (typeof dataUrl !== 'string' || dataUrl.length > MAX_MEDIA_DATA_URL) return false;
+  if (typeof dataUrl !== 'string' || dataUrl.length > MAX_MEDIA_DATA_URL) {
+    return false;
+  }
 
-  // Поддерживаем форматы записи, которые используют разные браузеры:
-  // Chrome/Chromium обычно WebM, Firefox может использовать Ogg,
-  // Safari и iPhone часто используют MP4.
-  const match = /^data:(audio\/(?:webm|ogg|mp4))(?:;[^;,=]+=[^;,]*)*;base64,([A-Za-z0-9+/]*={0,2})$/i.exec(dataUrl);
+  // Разрешённые типы аудио, включая форматы мобильных браузеров.
+  // Не требуем сигнатуру одного конкретного контейнера: она отличается
+  // в зависимости от устройства, ОС и браузера.
+  const match = /^data:(audio\/(?:webm|ogg|mp4|aac|mpeg|wav|3gpp|x-m4a))(?:;[^,]*)?;base64,([A-Za-z0-9+/]*={0,2})$/i.exec(dataUrl);
 
-  if (!match || match[2].length < 24 || match[2].length % 4 !== 0) return false;
+  if (!match || match[2].length < 24 || match[2].length % 4 !== 0) {
+    return false;
+  }
 
   try {
     const bytes = Buffer.from(match[2], 'base64');
-
-    // Проверяем, что данные действительно являются корректной base64-строкой.
-    if (!bytes.length || bytes.toString('base64') !== match[2]) return false;
-
-    const mime = match[1].toLowerCase();
-
-    if (mime === 'audio/webm') {
-      return bytes.length >= 4 &&
-        bytes.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
-    }
-
-    if (mime === 'audio/ogg') {
-      return bytes.length >= 4 &&
-        bytes.subarray(0, 4).toString('ascii') === 'OggS';
-    }
-
-    return bytes.length >= 12 &&
-      bytes.subarray(4, 8).toString('ascii') === 'ftyp';
+    return bytes.length > 0 && bytes.toString('base64') === match[2];
   } catch {
     return false;
   }
 }
 
 io.on('connection', socket => {
-  // Не записываем в логи ID сокетов, токены, IP-адреса и содержимое чата.
+  // Не записываем в логи IP, ID сокетов, токены и содержимое чатов.
   socket.emit('server_policy', { age: '18+', historyStored: false });
   updateOnlineCount();
 
   socket.on('find_partner', data => {
     if (limited(socket, 'find', 5, 10000, 30000)) {
-      socket.emit('rate_limited', { message: 'Слишком частые запросы. Подожди 30 секунд.' });
+      socket.emit('rate_limited', {
+        message: 'Слишком частые запросы. Подожди 30 секунд.'
+      });
       return;
     }
 
@@ -144,21 +172,24 @@ io.on('connection', socket => {
       : 'general';
 
     const ignored = Array.isArray(data && data.ignored)
-      ? data.ignored.filter(x => typeof x === 'string' && x.length <= 80).slice(0, MAX_IGNORED)
+      ? data.ignored
+          .filter(x => typeof x === 'string' && x.length <= 80)
+          .slice(0, MAX_IGNORED)
       : [];
 
     if (rooms.has(socket.id)) leaveRoom(socket);
-
     removeFromAllQueues(socket.id);
+
     socket.currentMode = mode;
     socket.ignoredPartners = new Set(ignored);
-
     tryMatch(socket);
   });
 
   socket.on('signal', data => {
     if (limited(socket, 'signal', 45, 10000, 15000)) {
-      socket.emit('rate_limited', { message: 'Слишком много сообщений. Подожди немного.' });
+      socket.emit('rate_limited', {
+        message: 'Слишком много сообщений. Подожди немного.'
+      });
       return;
     }
 
@@ -178,12 +209,19 @@ io.on('connection', socket => {
     if (typeof signal.chatText === 'string') {
       const text = signal.chatText.trim();
 
-      if (!text || text.length > MAX_TEXT || limited(socket, 'text', 15, 10000, 15000)) return;
+      if (
+        !text ||
+        text.length > MAX_TEXT ||
+        limited(socket, 'text', 15, 10000, 15000)
+      ) {
+        return;
+      }
 
       socket.to(data.room).emit('signal', {
         signal: { chatText: text },
         sender: socket.id
       });
+
     } else if (typeof signal.typing === 'boolean') {
       if (limited(socket, 'typing', 8, 5000, 5000)) return;
 
@@ -191,13 +229,18 @@ io.on('connection', socket => {
         signal: { typing: signal.typing },
         sender: socket.id
       });
+
     } else if (signal.media === 'photo' && validPhoto(signal.dataUrl)) {
       if (limited(socket, 'media', 4, 60000, 30000)) return;
 
       socket.to(data.room).emit('signal', {
-        signal: { media: 'photo', dataUrl: signal.dataUrl },
+        signal: {
+          media: 'photo',
+          dataUrl: signal.dataUrl
+        },
         sender: socket.id
       });
+
     } else if (signal.media === 'voice') {
       if (!validVoice(signal.dataUrl)) {
         socket.emit('media_result', {
@@ -217,12 +260,20 @@ io.on('connection', socket => {
         return;
       }
 
+      // Передаём голосовое собеседнику в текущей комнате.
       socket.to(data.room).emit('signal', {
-        signal: { media: 'voice', dataUrl: signal.dataUrl },
+        signal: {
+          media: 'voice',
+          dataUrl: signal.dataUrl
+        },
         sender: socket.id
       });
 
-      socket.emit('media_result', { ok: true, kind: 'voice' });
+      // Подтверждаем отправителю, что сервер принял голосовое.
+      socket.emit('media_result', {
+        ok: true,
+        kind: 'voice'
+      });
     }
   });
 
@@ -247,8 +298,9 @@ io.on('connection', socket => {
       ? data.reason
       : 'other';
 
-    const partnerId = [...(io.sockets.adapter.rooms.get(room) || [])]
-      .find(id => id !== socket.id) || null;
+    const partnerId = [
+      ...(io.sockets.adapter.rooms.get(room) || [])
+    ].find(id => id !== socket.id) || null;
 
     reports.push({
       id: crypto.randomUUID(),
@@ -280,8 +332,8 @@ function tryMatch(socket) {
   const queue = searchQueues[socket.currentMode || 'general'];
   if (!queue) return;
 
-  const index = queue.findIndex(id =>
-    id !== socket.id && !socket.ignoredPartners?.has(id)
+  const index = queue.findIndex(
+    id => id !== socket.id && !socket.ignoredPartners?.has(id)
   );
 
   if (index < 0) {
@@ -293,7 +345,9 @@ function tryMatch(socket) {
   const partnerId = queue.splice(index, 1)[0];
   const partner = io.sockets.sockets.get(partnerId);
 
-  if (!partner || rooms.has(partnerId)) return tryMatch(socket);
+  if (!partner || rooms.has(partnerId)) {
+    return tryMatch(socket);
+  }
 
   const room = `r_${crypto.randomUUID()}`;
 
@@ -303,8 +357,17 @@ function tryMatch(socket) {
   rooms.set(socket.id, room);
   rooms.set(partnerId, room);
 
-  socket.emit('matched', { room, partnerId, initiator: true });
-  partner.emit('matched', { room, partnerId: socket.id, initiator: false });
+  socket.emit('matched', {
+    room,
+    partnerId,
+    initiator: true
+  });
+
+  partner.emit('matched', {
+    room,
+    partnerId: socket.id,
+    initiator: false
+  });
 }
 
 function leaveRoom(socket) {
@@ -332,4 +395,6 @@ function updateOnlineCount() {
   io.emit('online', io.engine.clientsCount);
 }
 
-server.listen(PORT, () => console.log(`VYRO chat listening on port ${PORT}`));
+server.listen(PORT, () => {
+  console.log(`VYRO chat listening on port ${PORT}`);
+});
