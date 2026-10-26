@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>VYRO</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;700&family=JetBrains+Mono:wght@400;600;800&display=swap" rel="stylesheet">
@@ -1151,6 +1151,39 @@
     .roulette-box, .roulette-box.chat-mode { padding-top: 9px; padding-bottom: 9px; }
     .state-sub { margin-bottom: 8px; }
   }
+
+
+  /* VYRO mobile-app treatment: larger readable type, touch targets and safe areas. */
+  @media (max-width: 600px) {
+    html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+    body { padding-bottom: env(safe-area-inset-bottom); }
+    header { padding-left: max(14px, env(safe-area-inset-left)); padding-right: max(14px, env(safe-area-inset-right)); }
+    main { padding-left: max(14px, env(safe-area-inset-left)); padding-right: max(14px, env(safe-area-inset-right)); }
+    .roulette-box, .roulette-box.chat-mode { padding: 16px 13px; }
+    .main-project-title { font-size: clamp(24px, 7vw, 30px); line-height: 1.18; }
+    .mode-tab { font-size: 12px; line-height: 1.25; padding: 12px 5px; }
+    .chat-container { height: clamp(280px, 48dvh, 520px); min-height: 260px; max-height: 56dvh; }
+    .chat-messages { padding: 14px 12px; font-size: 16px; line-height: 1.55; }
+    .chat-msg { font-size: 16px; line-height: 1.55; overflow-wrap: anywhere; }
+    .chat-msg audio { width: min(100%, 320px); max-width: 100%; min-height: 42px; }
+    .message-caption { font-size: 12px; line-height: 1.4; }
+    .chat-input { font-size: 16px; line-height: 1.4; min-height: 46px; }
+    .chat-tools .chat-tool { width: 44px; min-width: 44px; height: 44px; flex-basis: 44px; }
+    .chat-tools .chat-tool svg { width: 22px; height: 22px; }
+    .btn, .controls .btn { font-size: 13px; line-height: 1.35; min-height: 44px; padding: 12px 10px; }
+    .state-title { font-size: clamp(22px, 6vw, 27px); }
+    .state-sub { font-size: 14px; line-height: 1.55; }
+    footer { font-size: 12px; line-height: 1.45; }
+    .online-counter, .logo { font-size: 14px; }
+    .age-btn { font-size: 13px; min-height: 44px; }
+  }
+  @media (max-width: 380px) {
+    .mode-tab { font-size: 11px; }
+    .chat-container { height: 46dvh; }
+    .chat-tools { gap: 5px; }
+    .chat-tools .chat-tool { width: 42px; min-width: 42px; height: 42px; flex-basis: 42px; }
+  }
+
 </style>
 </head>
 
@@ -1555,7 +1588,7 @@
         btn.classList.remove('recording'); resetVoiceButton();
         const blobType = (mediaRecorder && mediaRecorder.mimeType) || (voiceChunks[0] && voiceChunks[0].type) || 'audio/webm';
         const blob = new Blob(voiceChunks, { type: blobType });
-        if (blob.size > 900 * 1024) { alert('Запись получилась слишком большой. Попробуй сказать короче.'); return; }
+        if (blob.size > 1700 * 1024) { alert(`Запись слишком большая (${Math.round(blob.size / 1024)} КБ). Попробуй сказать короче.`); return; }
         if (blob.size < 1000 || !currentRoom) return;
         try {
           const dataUrl = await blobToDataUrl(blob);
@@ -1630,7 +1663,16 @@
     const signal = data && data.signal; if (!signal) return;
     if (typeof signal.chatText === 'string') { typingIndicator.classList.remove('active'); sounds.message(); appendMessage('Собеседник', signal.chatText, 'partner'); }
     if (signal.media === 'photo' && typeof signal.dataUrl === 'string' && signal.dataUrl.startsWith('data:image/jpeg;base64,') && signal.dataUrl.length <= 1350000) { sounds.message(); appendMediaMessage('Собеседник', 'photo', signal.dataUrl, 'partner', 'Фото'); }
-    if (signal.media === 'voice' && typeof signal.dataUrl === 'string' && /^data:audio\/(webm|ogg|mp4|aac|mpeg|wav|3gpp|x-m4a)(?:;[^,]*)?;base64,/i.test(signal.dataUrl) && signal.dataUrl.length <= 1350000) { sounds.message(); appendMediaMessage('Собеседник', 'voice', signal.dataUrl, 'partner', 'Голосовое сообщение'); }
+    if (signal.media === 'voice') {
+      const voiceUrl = signal.dataUrl;
+      const voiceMime = typeof voiceUrl === 'string' ? ((voiceUrl.match(/^data:([^;,]+)/i) || [])[1] || 'unknown') : 'missing';
+      if (typeof voiceUrl === 'string' && /^data:audio\/(webm|ogg|mp4|aac|mpeg|wav|3gpp|x-m4a|mp4a-latm|m4a)(?:;[^,]*)?;base64,/i.test(voiceUrl) && voiceUrl.length <= 2500000) {
+        sounds.message();
+        appendMediaMessage('Собеседник', 'voice', voiceUrl, 'partner', 'Голосовое сообщение');
+      } else {
+        console.warn('[voice] ignored incoming payload: unsupported MIME or size', { mime: voiceMime, dataUrlChars: typeof voiceUrl === 'string' ? voiceUrl.length : 0 });
+      }
+    }
     if (typeof signal.typing === 'boolean') typingIndicator.classList.toggle('active', signal.typing);
   });
   socket.on('partner_left', () => { sounds.chatEnded(); showChatEndedNotice('СОБЕСЕДНИК ЗАВЕРШИЛ ЧАТ', 'Разговор окончен. Можно подключиться к другому человеку.'); nextMatchIsSwitch = true; showIdle('Собеседник отключился. Можешь найти следующего.'); });
@@ -1645,8 +1687,8 @@
       alert(result.message || 'Не удалось отправить голосовое сообщение.');
       return;
     }
-    if (caption) caption.textContent = 'Голосовое сообщение';
-    $('voiceHint').textContent = 'голос отправлен';
+    if (caption) caption.textContent = result.recipients === 0 ? 'Сервер принял запись, но в комнате не найден получатель' : 'Голосовое сообщение';
+    $('voiceHint').textContent = result.recipients === 0 ? 'нет получателя' : 'голос отправлен';
     setTimeout(() => { if ($('voiceHint').textContent === 'голос отправлен') $('voiceHint').textContent = 'голос до 20 сек.'; }, 1800);
   });
   socket.on('server_policy', data => { if (data && data.historyStored === false) { /* policy is shown in the 18+ gate */ } });
