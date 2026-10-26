@@ -7,16 +7,17 @@ const { Server } = require('socket.io');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
-  maxHttpBufferSize: 1_500_000,
+  // Голосовые передаются как Base64, поэтому нужен лимит больше 1 МБ.
+  maxHttpBufferSize: 3_000_000,
   pingInterval: 25000,
   pingTimeout: 20000
 });
+
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const PORT = Number(process.env.PORT) || 3000;
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || '';
 const allowedOrigin = process.env.APP_ORIGIN || '';
 
-// История чата, файлы, IP-адреса и сообщения не сохраняются.
 app.disable('x-powered-by');
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -35,9 +36,7 @@ app.use(express.static(PUBLIC_DIR, {
   maxAge: process.env.NODE_ENV === 'production' ? '1h' : 0
 }));
 
-app.get('/healthz', (_req, res) => {
-  res.status(200).json({ ok: true });
-});
+app.get('/healthz', (_req, res) => res.status(200).json({ ok: true }));
 
 const searchQueues = { general: [], flirt: [], adult: [] };
 const rooms = new Map();
@@ -46,7 +45,7 @@ const blockedUntil = new Map();
 const reports = [];
 const MAX_REPORTS = 500;
 const MAX_TEXT = 2000;
-const MAX_MEDIA_DATA_URL = 1_350_000;
+const MAX_MEDIA_DATA_URL = 2_500_000;
 const MAX_IGNORED = 50;
 
 app.get('/admin/reports', (req, res) => {
@@ -71,11 +70,9 @@ app.get('/admin/reports', (req, res) => {
 });
 
 if (allowedOrigin) {
-  io.engine.on('headers', (headers, req) => {
+  io.engine.on('headers', (_headers, req) => {
     const origin = req.headers.origin;
-    if (origin && origin !== allowedOrigin) {
-      req._vhsOriginRejected = true;
-    }
+    if (origin && origin !== allowedOrigin) req._vhsOriginRejected = true;
   });
 
   io.use((socket, next) => {
@@ -137,25 +134,24 @@ function validVoice(dataUrl) {
     return false;
   }
 
-  // Разрешённые типы аудио, включая форматы мобильных браузеров.
-  // Не требуем сигнатуру одного конкретного контейнера: она отличается
-  // в зависимости от устройства, ОС и браузера.
-  const match = /^data:(audio\/(?:webm|ogg|mp4|aac|mpeg|wav|3gpp|x-m4a))(?:;[^,]*)?;base64,([A-Za-z0-9+/]*={0,2})$/i.exec(dataUrl);
+  const match = /^data:(audio\/[a-z0-9.+-]+)(?:;[^,]*)?;base64,([A-Za-z0-9+/]*={0,2})$/i.exec(dataUrl);
+  if (!match) return false;
 
-  if (!match || match[2].length < 24 || match[2].length % 4 !== 0) {
-    return false;
-  }
+  const allowedMime = /^audio\/(?:webm|ogg|mp4|aac|mpeg|wav|3gpp|x-m4a|mp4a-latm|m4a)$/i;
+  if (!allowedMime.test(match[1])) return false;
+
+  const payload = match[2];
+  if (payload.length < 24 || payload.length % 4 !== 0) return false;
 
   try {
-    const bytes = Buffer.from(match[2], 'base64');
-    return bytes.length > 0 && bytes.toString('base64') === match[2];
+    const bytes = Buffer.from(payload, 'base64');
+    return bytes.length > 0 && bytes.toString('base64') === payload;
   } catch {
     return false;
   }
 }
 
 io.on('connection', socket => {
-  // Не записываем в логи IP, ID сокетов, токены и содержимое чатов.
   socket.emit('server_policy', { age: '18+', historyStored: false });
   updateOnlineCount();
 
@@ -201,6 +197,14 @@ io.on('connection', socket => {
       !data.signal ||
       typeof data.signal !== 'object'
     ) {
+      if (data && data.signal && data.signal.media === 'voice') {
+        console.warn('[voice] dropped: invalid room/session state');
+        socket.emit('media_result', {
+          ok: false,
+          kind: 'voice',
+          message: 'Голосовое не отправлено: чат уже завершён или соединение изменилось.'
+        });
+      }
       return;
     }
 
@@ -208,14 +212,11 @@ io.on('connection', socket => {
 
     if (typeof signal.chatText === 'string') {
       const text = signal.chatText.trim();
-
       if (
         !text ||
         text.length > MAX_TEXT ||
         limited(socket, 'text', 15, 10000, 15000)
-      ) {
-        return;
-      }
+      ) return;
 
       socket.to(data.room).emit('signal', {
         signal: { chatText: text },
@@ -234,19 +235,23 @@ io.on('connection', socket => {
       if (limited(socket, 'media', 4, 60000, 30000)) return;
 
       socket.to(data.room).emit('signal', {
-        signal: {
-          media: 'photo',
-          dataUrl: signal.dataUrl
-        },
+        signal: { media: 'photo', dataUrl: signal.dataUrl },
         sender: socket.id
       });
 
     } else if (signal.media === 'voice') {
-      if (!validVoice(signal.dataUrl)) {
+      const dataUrl = signal.dataUrl;
+      const mime = typeof dataUrl === 'string'
+        ? ((dataUrl.match(/^data:([^;,]+)/i) || [])[1] || 'unknown')
+        : 'missing';
+      const size = typeof dataUrl === 'string' ? dataUrl.length : 0;
+
+      if (!validVoice(dataUrl)) {
+        console.warn(`[voice] rejected: invalid payload; mime=${mime}; dataUrlChars=${size}`);
         socket.emit('media_result', {
           ok: false,
           kind: 'voice',
-          message: 'Сервер не принял запись: формат не поддерживается или файл повреждён. Попробуй записать ещё раз.'
+          message: `Сервер отклонил голосовое: формат или размер. Тип: ${mime}; размер: ${size} символов.`
         });
         return;
       }
@@ -260,19 +265,24 @@ io.on('connection', socket => {
         return;
       }
 
-      // Передаём голосовое собеседнику в текущей комнате.
+      const recipientCount = Math.max(
+        0,
+        (io.sockets.adapter.rooms.get(data.room)?.size || 1) - 1
+      );
+
       socket.to(data.room).emit('signal', {
-        signal: {
-          media: 'voice',
-          dataUrl: signal.dataUrl
-        },
+        signal: { media: 'voice', dataUrl },
         sender: socket.id
       });
 
-      // Подтверждаем отправителю, что сервер принял голосовое.
+      console.log(
+        `[voice] accepted; mime=${mime}; dataUrlChars=${size}; recipients=${recipientCount}`
+      );
+
       socket.emit('media_result', {
         ok: true,
-        kind: 'voice'
+        kind: 'voice',
+        recipients: recipientCount
       });
     }
   });
@@ -286,7 +296,6 @@ io.on('connection', socket => {
     }
 
     const room = rooms.get(socket.id);
-
     if (!room || !data || data.room !== room) {
       return socket.emit('report_result', {
         ok: false,
@@ -345,29 +354,17 @@ function tryMatch(socket) {
   const partnerId = queue.splice(index, 1)[0];
   const partner = io.sockets.sockets.get(partnerId);
 
-  if (!partner || rooms.has(partnerId)) {
-    return tryMatch(socket);
-  }
+  if (!partner || rooms.has(partnerId)) return tryMatch(socket);
 
   const room = `r_${crypto.randomUUID()}`;
-
   socket.join(room);
   partner.join(room);
 
   rooms.set(socket.id, room);
   rooms.set(partnerId, room);
 
-  socket.emit('matched', {
-    room,
-    partnerId,
-    initiator: true
-  });
-
-  partner.emit('matched', {
-    room,
-    partnerId: socket.id,
-    initiator: false
-  });
+  socket.emit('matched', { room, partnerId, initiator: true });
+  partner.emit('matched', { room, partnerId: socket.id, initiator: false });
 }
 
 function leaveRoom(socket) {
