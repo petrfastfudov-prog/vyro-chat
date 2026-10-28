@@ -1286,6 +1286,72 @@
     body::after { animation: none !important; }
   }
 
+
+  /* VYRO desktop width correction v2: target the actual live panel by ID.
+     This intentionally overrides earlier max-width rules on desktop only. */
+  @media (min-width: 900px) {
+    main {
+      width: 100% !important;
+      max-width: min(1400px, 96vw) !important;
+      padding-left: 24px;
+      padding-right: 24px;
+    }
+
+    #rouletteBox {
+      width: min(1120px, 92vw) !important;
+      max-width: min(1120px, 92vw) !important;
+      min-width: 0;
+      box-sizing: border-box;
+      padding: clamp(30px, 3vw, 46px) !important;
+      border-radius: 22px;
+    }
+
+    #rouletteBox .modes-container {
+      width: 100% !important;
+      max-width: none !important;
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+
+    #rouletteBox .mode-tab {
+      min-height: 48px;
+      padding: 14px 16px;
+      font-size: 13px;
+      border-radius: 8px;
+    }
+
+    #rouletteBox .state-title {
+      font-size: clamp(26px, 2.1vw, 34px) !important;
+      line-height: 1.2;
+      margin-top: 0;
+    }
+
+    #rouletteBox .state-sub {
+      font-size: 14px !important;
+      line-height: 1.6;
+      margin-bottom: 22px !important;
+    }
+
+    #rouletteBox #searchBtn,
+    #rouletteBox .btn {
+      min-height: 52px;
+      font-size: 13px;
+    }
+
+    #rouletteBox.chat-mode {
+      width: min(1200px, 94vw) !important;
+      max-width: min(1200px, 94vw) !important;
+    }
+  }
+
+  /* Keep the phone layout exactly within its existing responsive rules. */
+  @media (max-width: 899px) {
+    #rouletteBox {
+      width: 100%;
+      max-width: 100%;
+    }
+  }
+
 </style>
 </head>
 
