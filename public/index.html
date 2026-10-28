@@ -1188,6 +1188,104 @@
     .chat-tools .chat-tool { width: 42px; min-width: 42px; height: 42px; flex-basis: 42px; }
   }
 
+
+  /* VYRO desktop polish: wider mode panel, clean corners, smooth animated aurora.
+     Kept as a final override so existing layout and app logic remain intact. */
+  #vhsCanvas,
+  .crt-overlay {
+    display: none !important;
+  }
+
+  /* Keep only the live online count in the top/bottom status bars. */
+  #siteHeader .logo,
+  #siteHeader .stats-info,
+  #siteFooter > div:first-child {
+    display: none !important;
+  }
+
+  body::after {
+    content: "";
+    position: fixed;
+    inset: -18%;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 18% 35%, rgba(24, 255, 218, .15) 0%, transparent 34%),
+      radial-gradient(ellipse at 78% 26%, rgba(67, 113, 255, .14) 0%, transparent 36%),
+      radial-gradient(ellipse at 72% 78%, rgba(184, 57, 255, .13) 0%, transparent 36%),
+      radial-gradient(ellipse at 35% 88%, rgba(255, 54, 133, .08) 0%, transparent 30%);
+    filter: blur(24px) saturate(115%);
+    transform: translate3d(0, 0, 0);
+    animation: vyroAuroraFlow 24s ease-in-out infinite alternate;
+    will-change: transform, filter;
+  }
+
+  @keyframes vyroAuroraFlow {
+    0% {
+      transform: translate3d(-2.5%, -1.5%, 0) scale(1);
+      filter: blur(24px) saturate(108%) hue-rotate(0deg);
+    }
+    50% {
+      transform: translate3d(2%, 1.5%, 0) scale(1.06);
+      filter: blur(30px) saturate(125%) hue-rotate(14deg);
+    }
+    100% {
+      transform: translate3d(-1%, 2%, 0) scale(1.03);
+      filter: blur(26px) saturate(118%) hue-rotate(-12deg);
+    }
+  }
+
+  @media (min-width: 900px) {
+    main {
+      max-width: min(1300px, 96vw);
+    }
+
+    .roulette-box:not(.chat-mode) {
+      width: min(900px, 92vw);
+      max-width: 900px;
+      padding: clamp(26px, 3vw, 38px);
+      border-radius: 20px;
+    }
+
+    .roulette-box:not(.chat-mode) .modes-container {
+      max-width: 100%;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .roulette-box:not(.chat-mode) .mode-tab {
+      padding: 13px 10px;
+      font-size: 12px;
+    }
+
+    .roulette-box:not(.chat-mode) .state-title {
+      font-size: clamp(24px, 2vw, 30px);
+    }
+
+    .roulette-box:not(.chat-mode) .state-sub {
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+
+    #siteHeader,
+    #siteFooter {
+      min-height: 48px;
+    }
+  }
+
+  @media (max-width: 899px) {
+    /* On phones and smaller tablets, preserve the existing compact layout. */
+    body::after {
+      inset: -10%;
+      filter: blur(20px) saturate(110%);
+      animation-duration: 30s;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    body::after { animation: none !important; }
+  }
+
 </style>
 </head>
 
