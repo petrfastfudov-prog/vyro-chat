@@ -1189,67 +1189,31 @@
   }
 
 
-  /* VYRO DESKTOP WIDTH FIX: override the original 760px card cap directly. */
+
+  /* VYRO desktop width fix: widen the idle mode-selection panel only. */
   @media screen and (min-width: 901px) {
-    body > main,
     main {
       width: 100% !important;
-      max-width: none !important;
+      max-width: min(1200px, 98vw) !important;
+      box-sizing: border-box !important;
+    }
+    #rouletteBox.roulette-box:not(.chat-mode) {
+      width: min(1040px, calc(100vw - 64px)) !important;
+      max-width: min(1040px, calc(100vw - 64px)) !important;
       min-width: 0 !important;
       box-sizing: border-box !important;
-      padding-left: 40px !important;
-      padding-right: 40px !important;
+      padding: 32px 40px !important;
     }
-
-    main > #rouletteBox,
-    main > .roulette-box,
-    #rouletteBox.roulette-box {
-      width: min(1120px, calc(100vw - 120px)) !important;
-      max-width: min(1120px, calc(100vw - 120px)) !important;
-      min-width: 0 !important;
-      box-sizing: border-box !important;
-      padding: 34px 38px !important;
-      margin-left: auto !important;
-      margin-right: auto !important;
-      flex: 0 1 auto !important;
-      border-radius: 22px !important;
-    }
-
-    #rouletteBox #modesContainer,
-    #rouletteBox .modes-container {
-      width: 100% !important;
-      max-width: none !important;
-      gap: 12px !important;
-      margin-bottom: 22px !important;
-    }
-
-    #rouletteBox .mode-tab {
-      min-height: 48px !important;
-      padding: 14px 12px !important;
-      font-size: 13px !important;
-    }
-
-    #rouletteBox .state-title {
-      font-size: 30px !important;
-      line-height: 1.25 !important;
-    }
-
-    #rouletteBox .state-sub {
-      font-size: 14px !important;
-      line-height: 1.6 !important;
-      margin-bottom: 22px !important;
+    #rouletteBox.roulette-box:not(.chat-mode) .modes-container {
+      max-width: 900px !important;
     }
   }
-
   @media screen and (max-width: 900px) {
-    main { max-width: 100% !important; }
-    #rouletteBox.roulette-box {
-      width: 100% !important;
-      max-width: 100% !important;
-      min-width: 0 !important;
+    #rouletteBox.roulette-box:not(.chat-mode) {
+      width: 100%;
+      max-width: 100%;
     }
   }
-
 </style>
 </head>
 
