@@ -1189,166 +1189,67 @@
   }
 
 
-  /* VYRO desktop polish: wider mode panel, clean corners, smooth animated aurora.
-     Kept as a final override so existing layout and app logic remain intact. */
-  #vhsCanvas,
-  .crt-overlay {
-    display: none !important;
-  }
-
-  /* Keep only the live online count in the top/bottom status bars. */
-  #siteHeader .logo,
-  #siteHeader .stats-info,
-  #siteFooter > div:first-child {
-    display: none !important;
-  }
-
-  body::after {
-    content: "";
-    position: fixed;
-    inset: -18%;
-    z-index: 0;
-    pointer-events: none;
-    background:
-      radial-gradient(ellipse at 18% 35%, rgba(24, 255, 218, .15) 0%, transparent 34%),
-      radial-gradient(ellipse at 78% 26%, rgba(67, 113, 255, .14) 0%, transparent 36%),
-      radial-gradient(ellipse at 72% 78%, rgba(184, 57, 255, .13) 0%, transparent 36%),
-      radial-gradient(ellipse at 35% 88%, rgba(255, 54, 133, .08) 0%, transparent 30%);
-    filter: blur(24px) saturate(115%);
-    transform: translate3d(0, 0, 0);
-    animation: vyroAuroraFlow 24s ease-in-out infinite alternate;
-    will-change: transform, filter;
-  }
-
-  @keyframes vyroAuroraFlow {
-    0% {
-      transform: translate3d(-2.5%, -1.5%, 0) scale(1);
-      filter: blur(24px) saturate(108%) hue-rotate(0deg);
-    }
-    50% {
-      transform: translate3d(2%, 1.5%, 0) scale(1.06);
-      filter: blur(30px) saturate(125%) hue-rotate(14deg);
-    }
-    100% {
-      transform: translate3d(-1%, 2%, 0) scale(1.03);
-      filter: blur(26px) saturate(118%) hue-rotate(-12deg);
-    }
-  }
-
-  @media (min-width: 900px) {
+  /* VYRO FIX v3: force the desktop selector frame to use the available screen width.
+     This intentionally overrides earlier max-width rules, but leaves mobile rules intact. */
+  @media screen and (min-width: 901px) {
+    body > main,
     main {
-      max-width: min(1300px, 96vw);
-    }
-
-    .roulette-box:not(.chat-mode) {
-      width: min(900px, 92vw);
-      max-width: 900px;
-      padding: clamp(26px, 3vw, 38px);
-      border-radius: 20px;
-    }
-
-    .roulette-box:not(.chat-mode) .modes-container {
-      max-width: 100%;
-      gap: 10px;
-      margin-bottom: 18px;
-    }
-
-    .roulette-box:not(.chat-mode) .mode-tab {
-      padding: 13px 10px;
-      font-size: 12px;
-    }
-
-    .roulette-box:not(.chat-mode) .state-title {
-      font-size: clamp(24px, 2vw, 30px);
-    }
-
-    .roulette-box:not(.chat-mode) .state-sub {
-      font-size: 13px;
-      margin-bottom: 16px;
-    }
-
-    #siteHeader,
-    #siteFooter {
-      min-height: 48px;
-    }
-  }
-
-  @media (max-width: 899px) {
-    /* On phones and smaller tablets, preserve the existing compact layout. */
-    body::after {
-      inset: -10%;
-      filter: blur(20px) saturate(110%);
-      animation-duration: 30s;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    body::after { animation: none !important; }
-  }
-
-
-  /* VYRO desktop width correction v2: target the actual live panel by ID.
-     This intentionally overrides earlier max-width rules on desktop only. */
-  @media (min-width: 900px) {
-    main {
-      width: 100% !important;
-      max-width: min(1400px, 96vw) !important;
-      padding-left: 24px;
-      padding-right: 24px;
-    }
-
-    #rouletteBox {
-      width: min(1120px, 92vw) !important;
-      max-width: min(1120px, 92vw) !important;
-      min-width: 0;
-      box-sizing: border-box;
-      padding: clamp(30px, 3vw, 46px) !important;
-      border-radius: 22px;
-    }
-
-    #rouletteBox .modes-container {
       width: 100% !important;
       max-width: none !important;
-      gap: 12px;
-      margin-bottom: 22px;
+      box-sizing: border-box !important;
+      padding-left: 32px !important;
+      padding-right: 32px !important;
     }
 
-    #rouletteBox .mode-tab {
-      min-height: 48px;
-      padding: 14px 16px;
-      font-size: 13px;
-      border-radius: 8px;
+    #rouletteBox.roulette-box:not(.chat-mode) {
+      display: flex !important;
+      box-sizing: border-box !important;
+      width: min(1100px, calc(100vw - 96px)) !important;
+      max-width: min(1100px, calc(100vw - 96px)) !important;
+      min-width: 0 !important;
+      padding: 34px 38px !important;
+      margin-left: auto !important;
+      margin-right: auto !important;
+      border-radius: 22px !important;
     }
 
-    #rouletteBox .state-title {
-      font-size: clamp(26px, 2.1vw, 34px) !important;
-      line-height: 1.2;
-      margin-top: 0;
-    }
-
-    #rouletteBox .state-sub {
-      font-size: 14px !important;
-      line-height: 1.6;
+    #rouletteBox.roulette-box:not(.chat-mode) .modes-container {
+      width: 100% !important;
+      max-width: none !important;
+      gap: 12px !important;
       margin-bottom: 22px !important;
     }
 
-    #rouletteBox #searchBtn,
-    #rouletteBox .btn {
-      min-height: 52px;
-      font-size: 13px;
+    #rouletteBox.roulette-box:not(.chat-mode) .mode-tab {
+      min-height: 48px !important;
+      font-size: 13px !important;
+      padding: 14px 12px !important;
     }
 
-    #rouletteBox.chat-mode {
-      width: min(1200px, 94vw) !important;
-      max-width: min(1200px, 94vw) !important;
+    #rouletteBox.roulette-box:not(.chat-mode) .state-title {
+      font-size: 30px !important;
+      line-height: 1.25 !important;
+    }
+
+    #rouletteBox.roulette-box:not(.chat-mode) .state-sub {
+      font-size: 14px !important;
+      line-height: 1.6 !important;
+      margin-bottom: 22px !important;
+    }
+
+    #rouletteBox.roulette-box:not(.chat-mode) #searchBtn,
+    #rouletteBox.roulette-box:not(.chat-mode) .btn {
+      min-height: 54px;
     }
   }
 
-  /* Keep the phone layout exactly within its existing responsive rules. */
-  @media (max-width: 899px) {
-    #rouletteBox {
+  @media screen and (max-width: 900px) {
+    /* Keep the established mobile/tablet sizing and touch layout unchanged. */
+    #rouletteBox.roulette-box,
+    #rouletteBox.roulette-box:not(.chat-mode) {
       width: 100%;
       max-width: 100%;
+      min-width: 0;
     }
   }
 
